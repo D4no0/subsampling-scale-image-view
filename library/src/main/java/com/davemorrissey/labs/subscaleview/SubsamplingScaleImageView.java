@@ -1800,10 +1800,10 @@ public class SubsamplingScaleImageView extends View {
      */
     private synchronized void onImageLoaded(Bitmap bitmap, int sOrientation, boolean bitmapIsCached) {
         debug("onImageLoaded");
-        // If actual dimensions don't match the declared size, reset everything.
-        if (this.sWidth > 0 && this.sHeight > 0 && (this.sWidth != bitmap.getWidth() || this.sHeight != bitmap.getHeight())) {
-            reset(false);
-        }
+        // If actual dimensions don't match the declared size, reset everything. (Commented since restoring the state doesn't work)
+//        if (this.sWidth > 0 && this.sHeight > 0 && (this.sWidth != bitmap.getWidth() || this.sHeight != bitmap.getHeight())) {
+//            reset(false);
+//        }
         if (this.bitmap != null && !this.bitmapIsCached) {
             this.bitmap.recycle();
         }
