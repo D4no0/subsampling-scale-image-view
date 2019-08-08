@@ -281,8 +281,8 @@ public class SubsamplingScaleImageView<T extends ImageViewState> extends View {
     private final float density;
 
     //Generic state that can be customized by inheriting from ImageViewState
-    private Class<T> stateClass;
-    private T state;
+    protected Class<T> stateClass;
+    protected T state;
 
     // A global preference for bitmap format, available to decoder classes that respect it
     private static Bitmap.Config preferredBitmapConfig;
@@ -2696,7 +2696,10 @@ public class SubsamplingScaleImageView<T extends ImageViewState> extends View {
      */
     @Nullable
     public final T getState() {
-        if (vTranslate != null && sWidth > 0 && sHeight > 0) {
+        if (state == null && stateClass != null) {
+            state = createInstance(stateClass);
+        }
+        if (vTranslate != null && sWidth > 0 && sHeight > 0 && state != null) {
             //noinspection ConstantConditions
             state.setScale(getScale());
             state.setCenter(getCenter());
