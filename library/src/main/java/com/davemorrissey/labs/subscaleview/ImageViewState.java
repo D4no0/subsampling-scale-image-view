@@ -7,35 +7,40 @@ import java.io.Serializable;
 
 /**
  * Wraps the scale, center and orientation of a displayed image for easy restoration on screen rotate.
+ * IMPORTANT: For each child class implement parameterless constructor and don't delete this one
  */
 @SuppressWarnings("WeakerAccess")
 public class ImageViewState implements Serializable {
 
-    private final float scale;
+    private float scale;
+    private PointF center;
+    private int orientation;
 
-    private final float centerX;
-
-    private final float centerY;
-
-    private final int orientation;
+    public ImageViewState() {
+        this.scale = 0f;
+        this.center = new PointF(0f, 0f);
+        this.orientation = 0;
+    }
 
     public ImageViewState(float scale, @NonNull PointF center, int orientation) {
         this.scale = scale;
-        this.centerX = center.x;
-        this.centerY = center.y;
+        this.center = center;
         this.orientation = orientation;
     }
 
     public float getScale() {
         return scale;
     }
+    public void setScale(float scale) { this.scale = scale; }
 
     @NonNull public PointF getCenter() {
-        return new PointF(centerX, centerY);
+        return center;
     }
+    public void setCenter(PointF center) { this.center = center; }
 
     public int getOrientation() {
         return orientation;
     }
+    public void setOrientation(int orientation) { this.orientation = orientation; }
 
 }

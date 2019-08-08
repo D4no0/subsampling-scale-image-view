@@ -69,7 +69,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * </p>
  */
 @SuppressWarnings("unused")
-public class SubsamplingScaleImageView extends View {
+public class SubsamplingScaleImageView<T extends ImageViewState> extends View {
 
     private static final String TAG = SubsamplingScaleImageView.class.getSimpleName();
 
@@ -280,8 +280,20 @@ public class SubsamplingScaleImageView extends View {
     //The logical density of the display
     private final float density;
 
+    //Generic state that can be customized by inheriting from ImageViewState
+    private Class<T> stateClass;
+    private T state;
+
     // A global preference for bitmap format, available to decoder classes that respect it
     private static Bitmap.Config preferredBitmapConfig;
+
+    private T createInstance(@NonNull Class<T> stateClass) {
+        try {
+            return stateClass.newInstance();
+        } catch (Exception e) {
+            throw new IllegalStateException(e.getMessage());
+        }
+    }
 
     public SubsamplingScaleImageView(Context context, AttributeSet attr) {
         super(context, attr);
@@ -377,8 +389,8 @@ public class SubsamplingScaleImageView extends View {
      * Set the image source from a bitmap, resource, asset, file or other URI.
      * @param imageSource Image source.
      */
-    public final void setImage(@NonNull ImageSource imageSource) {
-        setImage(imageSource, null, null);
+    private void setImage(@NonNull ImageSource imageSource) {
+        setImage(imageSource, null, null, stateClass);
     }
 
     /**
@@ -388,8 +400,8 @@ public class SubsamplingScaleImageView extends View {
      * @param imageSource Image source.
      * @param state State to be restored. Nullable.
      */
-    public final void setImage(@NonNull ImageSource imageSource, ImageViewState state) {
-        setImage(imageSource, null, state);
+    public void setImage(@NonNull ImageSource imageSource, T state, @NonNull Class<T> stateClass) {
+        setImage(imageSource, null, state, stateClass);
     }
 
     /**
@@ -402,8 +414,8 @@ public class SubsamplingScaleImageView extends View {
      * @param imageSource Image source. Dimensions must be declared.
      * @param previewSource Optional source for a preview image to be displayed and allow interaction while the full size image loads.
      */
-    public final void setImage(@NonNull ImageSource imageSource, ImageSource previewSource) {
-        setImage(imageSource, previewSource, null);
+    public void setImage(@NonNull ImageSource imageSource, ImageSource previewSource, @NonNull Class<T> stateClass) {
+        setImage(imageSource, previewSource, null, stateClass);
     }
 
     /**
@@ -419,10 +431,17 @@ public class SubsamplingScaleImageView extends View {
      * @param previewSource Optional source for a preview image to be displayed and allow interaction while the full size image loads.
      * @param state State to be restored. Nullable.
      */
-    public final void setImage(@NonNull ImageSource imageSource, ImageSource previewSource, ImageViewState state) {
-        //noinspection ConstantConditions
-        if (imageSource == null) {
-            throw new NullPointerException("imageSource must not be null");
+    public void setImage(@NonNull ImageSource imageSource, ImageSource previewSource, T state, Class<T> stateClass) {
+        //Checking wether the state class is provided
+        this.stateClass = stateClass;
+        if(this.state == null && this.stateClass != null) {
+            this.state = createInstance(stateClass);
+        }
+
+        if(state != null && this.state != null) {
+            this.state.setOrientation(state.getOrientation());
+            this.state.setCenter(state.getCenter());
+            this.state.setScale(state.getScale());
         }
 
         reset(true);
@@ -1331,9 +1350,9 @@ public class SubsamplingScaleImageView extends View {
      */
     private boolean tileVisible(Tile tile) {
         float sVisLeft = viewToSourceX(0),
-            sVisRight = viewToSourceX(getWidth()),
-            sVisTop = viewToSourceY(0),
-            sVisBottom = viewToSourceY(getHeight());
+                sVisRight = viewToSourceX(getWidth()),
+                sVisTop = viewToSourceY(0),
+                sVisBottom = viewToSourceY(getHeight());
         return !(sVisLeft > tile.sRect.right || tile.sRect.left > sVisRight || sVisTop > tile.sRect.bottom || tile.sRect.top > sVisBottom);
     }
 
@@ -1509,10 +1528,10 @@ public class SubsamplingScaleImageView extends View {
                     tile.sampleSize = sampleSize;
                     tile.visible = sampleSize == fullImageSampleSize;
                     tile.sRect = new Rect(
-                        x * sTileWidth,
-                        y * sTileHeight,
-                        x == xTiles - 1 ? sWidth() : (x + 1) * sTileWidth,
-                        y == yTiles - 1 ? sHeight() : (y + 1) * sTileHeight
+                            x * sTileWidth,
+                            y * sTileHeight,
+                            x == xTiles - 1 ? sWidth() : (x + 1) * sTileWidth,
+                            y == yTiles - 1 ? sHeight() : (y + 1) * sTileHeight
                     );
                     tile.vRect = new Rect(0, 0, 0, 0);
                     tile.fileSRect = new Rect(tile.sRect);
@@ -1800,10 +1819,10 @@ public class SubsamplingScaleImageView extends View {
      */
     private synchronized void onImageLoaded(Bitmap bitmap, int sOrientation, boolean bitmapIsCached) {
         debug("onImageLoaded");
-        // If actual dimensions don't match the declared size, reset everything. (Commented since restoring the state doesn't work)
-//        if (this.sWidth > 0 && this.sHeight > 0 && (this.sWidth != bitmap.getWidth() || this.sHeight != bitmap.getHeight())) {
+        // If actual dimensions don't match the declared size, reset everything.
+        if (this.sWidth > 0 && this.sHeight > 0 && (this.sWidth != bitmap.getWidth() || this.sHeight != bitmap.getHeight())) {
 //            reset(false);
-//        }
+        }
         if (this.bitmap != null && !this.bitmapIsCached) {
             this.bitmap.recycle();
         }
@@ -1925,7 +1944,7 @@ public class SubsamplingScaleImageView extends View {
     /**
      * Set scale, center and orientation from saved state.
      */
-    private void restoreState(ImageViewState state) {
+    protected void restoreState(T state) {
         if (state != null && VALID_ORIENTATIONS.contains(state.getOrientation())) {
             this.orientation = state.getOrientation();
             this.pendingScale = state.getScale();
@@ -2222,10 +2241,10 @@ public class SubsamplingScaleImageView extends View {
      */
     private void sourceToViewRect(@NonNull Rect sRect, @NonNull Rect vTarget) {
         vTarget.set(
-            (int)sourceToViewX(sRect.left),
-            (int)sourceToViewY(sRect.top),
-            (int)sourceToViewX(sRect.right),
-            (int)sourceToViewY(sRect.bottom)
+                (int)sourceToViewX(sRect.left),
+                (int)sourceToViewY(sRect.top),
+                (int)sourceToViewX(sRect.right),
+                (int)sourceToViewY(sRect.bottom)
         );
     }
 
@@ -2676,10 +2695,13 @@ public class SubsamplingScaleImageView extends View {
      * @return an {@link ImageViewState} instance representing the current position of the image. null if the view isn't ready.
      */
     @Nullable
-    public final ImageViewState getState() {
+    public final T getState() {
         if (vTranslate != null && sWidth > 0 && sHeight > 0) {
             //noinspection ConstantConditions
-            return new ImageViewState(getScale(), getCenter(), getOrientation());
+            state.setScale(getScale());
+            state.setCenter(getCenter());
+            state.setOrientation(getOrientation());
+            return state;
         }
         return null;
     }
@@ -3064,8 +3086,8 @@ public class SubsamplingScaleImageView extends View {
             anim.sCenterEnd = targetSCenter;
             anim.vFocusStart = sourceToViewCoord(targetSCenter);
             anim.vFocusEnd = new PointF(
-                vxCenter,
-                vyCenter
+                    vxCenter,
+                    vyCenter
             );
             anim.duration = duration;
             anim.interruptible = interruptible;
@@ -3083,8 +3105,8 @@ public class SubsamplingScaleImageView extends View {
                 fitToBounds(true, satEnd);
                 // Adjust the position of the focus point at end so image will be in bounds
                 anim.vFocusEnd = new PointF(
-                    vFocus.x + (satEnd.vTranslate.x - vTranslateXEnd),
-                    vFocus.y + (satEnd.vTranslate.y - vTranslateYEnd)
+                        vFocus.x + (satEnd.vTranslate.x - vTranslateXEnd),
+                        vFocus.y + (satEnd.vTranslate.y - vTranslateYEnd)
                 );
             }
 
@@ -3180,9 +3202,9 @@ public class SubsamplingScaleImageView extends View {
         void onTileLoadError(Exception e);
 
         /**
-        * Called when a bitmap set using ImageSource.cachedBitmap is no longer being used by the View.
-        * This is useful if you wish to manage the bitmap after the preview is shown
-        */
+         * Called when a bitmap set using ImageSource.cachedBitmap is no longer being used by the View.
+         * This is useful if you wish to manage the bitmap after the preview is shown
+         */
         void onPreviewReleased();
     }
 
